@@ -95,14 +95,29 @@ def dice_dataset(env, standardize_observation=True, absorbing_state=True, standa
     return initial_obs_dataset, dataset, dataset_statistics
 
 
-def evaluate(env, agent, dataset_statistics, absorbing_state=True, num_evaluation=3, pid=None):
+def evaluate(
+    env,
+    agent,
+    dataset_statistics,
+    absorbing_state=True,
+    num_evaluation=3,
+    pid=None,
+    print_fn=print,
+    show_progress=True,
+):
     normalized_scores = []
 
     for eval_iter in range(num_evaluation):
         start_time = time.time()
         obs = env.reset()
         episode_reward = 0
-        for t in tqdm(range(env._max_episode_steps), ncols=70, desc='evaluate', ascii=True, disable=os.environ.get("DISABLE_TQDM", False)):
+        for t in tqdm(
+            range(env._max_episode_steps),
+            ncols=70,
+            desc='evaluate',
+            ascii=True,
+            disable=bool(os.environ.get("DISABLE_TQDM", False)) or not show_progress,
+        ):
             if absorbing_state:
                 obs_standardized = np.append((obs - dataset_statistics['observation_mean']) / (dataset_statistics['observation_std'] + 1e-10), 0)
             else:
@@ -117,9 +132,10 @@ def evaluate(env, agent, dataset_statistics, absorbing_state=True, num_evaluatio
                 break
             obs = next_obs
         normalized_score = 100 * (episode_reward - d4rl.infos.REF_MIN_SCORE[env.spec.id]) / (d4rl.infos.REF_MAX_SCORE[env.spec.id] - d4rl.infos.REF_MIN_SCORE[env.spec.id])
-        if pid is not None:
-            print(f'PID [{pid}], Eval Iteration {eval_iter}')
-        print(f'normalized_score: {normalized_score} (elapsed_time={time.time() - start_time:.3f}) ')
+        if pid is not None and print_fn:
+            print_fn(f'PID [{pid}], Eval Iteration {eval_iter}')
+        if print_fn:
+            print_fn(f'normalized_score: {normalized_score} (elapsed_time={time.time() - start_time:.3f}) ')
         normalized_scores.append(normalized_score)
 
-    return np.mean(normalized_scores)
+    return np.asarray(normalized_scores)
